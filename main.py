@@ -99,18 +99,30 @@ class EasyBotCleanerPlugin(Star):
             logger.error(f"[EasyBotCleaner] 获取群 {group_id} 成员列表失败: {e}", exc_info=True)
         return []
 
-    async def _check_permission(self, event: AstrMessageEvent, group_id: str) -> bool:
-        """验证发送者是否具有管理权限（群主/管理员/超管）"""
+    async def _check_permission(self, event: AstrMessageEvent, group_id: Optional[str] = None) -> bool:
+        """验证发送者是否具有管理权限（群主/管理员/AstrBot超管）"""
         sender_id = self._get_sender_id(event)
         if not sender_id:
             return False
 
-        # 如果是 AstrBot 管理员
+        # 1. 如果是 AstrBot 管理员 / 主人
         if hasattr(event, "is_admin") and callable(event.is_admin):
             if event.is_admin():
                 return True
 
-        # 查询群成员信息验证角色
+        # 2. 如果没有 group_id（私聊场景），且不是 AstrBot 管理员，则直接拒绝
+        if not group_id:
+            return False
+
+        # 3. 优先从消息事件自带的 sender 信息中提取角色（0 延迟，适配 OneBot/NapCat/Lagrange）
+        if hasattr(event, "message_obj") and event.message_obj:
+            sender = getattr(event.message_obj, "sender", None)
+            if sender:
+                role = str(getattr(sender, "role", "") or "").lower()
+                if role in ["owner", "admin"]:
+                    return True
+
+        # 4. 兜底方案：查询群成员列表验证角色
         members = await self._get_group_members(event, group_id)
         for m in members:
             if str(m.get("user_id")) == str(sender_id):
@@ -370,7 +382,7 @@ class EasyBotCleanerPlugin(Star):
         /mc白名单 [添加/删除/列表] [QQ号] - 管理永久豁免白名单
         """
         group_id = self._get_group_id(event)
-        if group_id and not await self._check_permission(event, group_id):
+        if not await self._check_permission(event, group_id):
             yield event.plain_result("⛔ 权限不足：只有管理员可配置白名单！")
             return
 
