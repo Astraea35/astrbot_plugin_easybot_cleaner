@@ -129,10 +129,10 @@ class EasyBotCleanerPlugin(Star):
 
     # ---------------- 核心指令实现 ----------------
 
-    @filter.command("mc_scan")
+    @filter.command("mc扫描")
     async def mc_scan_cmd(self, event: AstrMessageEvent, days: Optional[int] = None):
         """
-        /mc_scan [未发言天数] - 扫描未绑定 MC 且超期未发言的成员名单（预览模式，不踢人）
+        /mc扫描 [未发言天数] - 扫描未绑定 MC 且超期未发言的成员名单（预览模式，不踢人）
         """
         group_id = self._get_group_id(event)
         if not group_id:
@@ -152,7 +152,7 @@ class EasyBotCleanerPlugin(Star):
 
         # 1. 获取已绑定 QQ 集合
         bound_qqs = await self.adapter.get_bound_qq_set()
-        logger.info(f"[mc_scan] 获取到 {len(bound_qqs)} 个已绑定 MC 账号")
+        logger.info(f"[mc扫描] 获取到 {len(bound_qqs)} 个已绑定 MC 账号")
 
         # 2. 获取群成员列表
         members = await self._get_group_members(event, group_id)
@@ -197,14 +197,14 @@ class EasyBotCleanerPlugin(Star):
             if len(report.inactive_candidates) > 30:
                 msg_lines.append(f"... 还有 {len(report.inactive_candidates) - 30} 人未展示")
 
-            msg_lines.append("\n💡 提示: 若要执行清理，请发送: /mc_clean " + str(report.threshold_days))
+            msg_lines.append("\n💡 提示: 若要执行清理，请发送: /mc清理 " + str(report.threshold_days))
 
         yield event.plain_result("\n".join(msg_lines))
 
-    @filter.command("mc_clean")
+    @filter.command("mc清理")
     async def mc_clean_cmd(self, event: AstrMessageEvent, days: Optional[int] = None, confirm_flag: Optional[str] = None):
         """
-        /mc_clean [未发言天数] [force/confirm] - 清理未绑定且超期未发言的成员
+        /mc清理 [未发言天数] [确认/强制] - 清理未绑定且超期未发言的成员
         """
         group_id = self._get_group_id(event)
         if not group_id:
@@ -220,7 +220,7 @@ class EasyBotCleanerPlugin(Star):
             return
 
         threshold_days = days if days is not None and days > 0 else int(self.config.get("default_inactive_days", 30))
-        is_force = confirm_flag and confirm_flag.lower() in ["force", "confirm", "yes", "true", "-f"]
+        is_force = confirm_flag and confirm_flag.lower() in ["force", "confirm", "yes", "true", "-f", "确认", "强制", "确定"]
 
         now = time.time()
         pending = self._pending_cleans.get(group_id)
@@ -264,7 +264,7 @@ class EasyBotCleanerPlugin(Star):
                 f"⚠️【高危操作警告】\n"
                 f"经检测，群内共有 {len(candidates)} 名未绑定 MC 账号且 ≥{threshold_days} 天未发言的成员！\n\n"
                 f"❗ 执行清理将自动将这些成员踢出群聊。\n"
-                f"👉 请在 60 秒内发送: /mc_clean {threshold_days} confirm 确认执行！"
+                f"👉 请在 60 秒内发送: /mc清理 {threshold_days} 确认 确认执行！"
             )
             return
 
@@ -296,10 +296,10 @@ class EasyBotCleanerPlugin(Star):
 
         yield event.plain_result("\n".join(res_msg))
 
-    @filter.command("mc_bind_check")
+    @filter.command("mc查绑定")
     async def mc_bind_check_cmd(self, event: AstrMessageEvent, target_qq: Optional[str] = None):
         """
-        /mc_bind_check [QQ号 / @成员] - 查询单个成员的 MC 绑定状态和群活跃记录
+        /mc查绑定 [QQ号 / @成员] - 查询单个成员的 MC 绑定状态和群活跃记录
         """
         group_id = self._get_group_id(event)
         sender_id = self._get_sender_id(event)
@@ -364,22 +364,22 @@ class EasyBotCleanerPlugin(Star):
 
         yield event.plain_result("\n".join(lines))
 
-    @filter.command("mc_whitelist")
+    @filter.command("mc白名单")
     async def mc_whitelist_cmd(self, event: AstrMessageEvent, action: Optional[str] = None, qq: Optional[str] = None):
         """
-        /mc_whitelist [add/del/list] [QQ号] - 管理永久豁免白名单
+        /mc白名单 [添加/删除/列表] [QQ号] - 管理永久豁免白名单
         """
         group_id = self._get_group_id(event)
         if group_id and not await self._check_permission(event, group_id):
             yield event.plain_result("⛔ 权限不足：只有管理员可配置白名单！")
             return
 
-        act = (action or "list").lower()
+        act = (action or "列表").lower()
         whitelist: List[str] = self.config.get("whitelist_qqs", [])
         if not isinstance(whitelist, list):
             whitelist = []
 
-        if act == "list":
+        if act in ["list", "列表", "查看", "查"]:
             if not whitelist:
                 yield event.plain_result("📋 当前白名单为空（所有未绑定且潜水成员均受清理规则约束）。")
             else:
@@ -388,19 +388,19 @@ class EasyBotCleanerPlugin(Star):
             return
 
         if not qq or not str(qq).strip().isdigit():
-            yield event.plain_result("❌ 请输入正确的 QQ 号！例如: /mc_whitelist add 123456789")
+            yield event.plain_result("❌ 请输入正确的 QQ 号！例如: /mc白名单 添加 123456789")
             return
 
         qq_str = str(qq).strip()
 
-        if act in ["add", "+"]:
+        if act in ["add", "+", "添加", "增加", "加"]:
             if qq_str in whitelist:
                 yield event.plain_result(f"ℹ️ QQ {qq_str} 已在白名单中。")
             else:
                 whitelist.append(qq_str)
                 self.config["whitelist_qqs"] = whitelist
                 yield event.plain_result(f"✅ 成功将 QQ {qq_str} 添加至白名单！")
-        elif act in ["del", "rm", "remove", "-"]:
+        elif act in ["del", "rm", "remove", "-", "删除", "移除", "删"]:
             if qq_str in whitelist:
                 whitelist.remove(qq_str)
                 self.config["whitelist_qqs"] = whitelist
@@ -408,12 +408,12 @@ class EasyBotCleanerPlugin(Star):
             else:
                 yield event.plain_result(f"ℹ️ QQ {qq_str} 不在白名单中。")
         else:
-            yield event.plain_result("❌ 未知操作，可用操作: /mc_whitelist [add/del/list] [QQ号]")
+            yield event.plain_result("❌ 未知操作，可用操作: /mc白名单 [添加/删除/列表] [QQ号]")
 
-    @filter.command("mc_help")
+    @filter.command("mc帮助")
     async def mc_help_cmd(self, event: AstrMessageEvent):
         """
-        /mc_help - 查看 MC 潜水清理插件帮助与当前配置
+        /mc帮助 - 查看 MC 潜水清理插件帮助与当前配置
         """
         st = self.adapter.source_type
         default_days = self.config.get("default_inactive_days", 30)
@@ -423,11 +423,11 @@ class EasyBotCleanerPlugin(Star):
         help_text = (
             f"📖【EasyBot MC 绑定与潜水清理插件帮助】\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 /mc_scan [天数] - 扫描未绑定且超期未发言成员（安全预览）\n"
-            f"🔹 /mc_clean [天数] [force] - 清理踢出未绑定超期成员\n"
-            f"🔹 /mc_bind_check [QQ/@] - 查询成员 MC 绑定与发言活跃\n"
-            f"🔹 /mc_whitelist [add/del/list] [QQ] - 管理豁免白名单\n"
-            f"🔹 /mc_help - 显示本帮助信息\n"
+            f"🔹 /mc扫描 [天数] - 扫描未绑定且超期未发言成员（安全预览）\n"
+            f"🔹 /mc清理 [天数] [确认/强制] - 清理踢出未绑定超期成员\n"
+            f"🔹 /mc查绑定 [QQ/@] - 查询成员 MC 绑定与发言活跃\n"
+            f"🔹 /mc白名单 [添加/删除/列表] [QQ] - 管理豁免白名单\n"
+            f"🔹 /mc帮助 - 显示本帮助信息\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⚙️ 当前配置状态:\n"
             f"- 数据源类型: {st}\n"

@@ -10,7 +10,7 @@ logger = logging.getLogger("astrbot")
 class EasyBotAdapter:
     """
     EasyBot 数据源适配器
-    支持从 SQLite、MySQL、JSON 文件、HTTP API 中获取 Minecraft 绑定数据。
+    支持从 SQLite (包括 EasyBot 2.0 EFCore 架构与 1.0 单表架构)、MySQL、JSON 文件、HTTP API 中获取 Minecraft 绑定数据。
     """
 
     def __init__(self, config: Dict[str, Any]):
@@ -73,7 +73,7 @@ class EasyBotAdapter:
 
         def _sync_sqlite_fetch() -> Dict[str, str]:
             bindings: Dict[str, str] = {}
-            # 使用 URI 模式只读打开，避免占用锁
+            # 使用 URI 模式只读打开，避免占用与冲突
             conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
             conn.row_factory = sqlite3.Row
             try:
@@ -88,6 +88,39 @@ class EasyBotAdapter:
                     logger.warning(f"[EasyBotAdapter] SQLite 数据库 {db_path} 中无任何数据表")
                     return {}
 
+                # 1. 优先检测 EasyBot 2.0 架构 (SocialAccount + PlayerSocialAccount + Player)
+                table_set = {t.lower(): t for t in tables}
+                if "socialaccount" in table_set and "playersocialaccount" in table_set and "player" in table_set:
+                    t_sa = table_set["socialaccount"]
+                    t_psa = table_set["playersocialaccount"]
+                    t_p = table_set["player"]
+                    logger.info(f"[EasyBotAdapter] 检测到 EasyBot 2.0 架构数据库，执行多表联查...")
+
+                    # 探测主外键字段
+                    cursor.execute(f"PRAGMA table_info('{t_psa}')")
+                    psa_cols = [c[1] for c in cursor.fetchall()]
+                    # 通常是 SocialAccountsId 和 UsersId (或 PlayersId)
+                    sa_id_col = "SocialAccountsId" if "SocialAccountsId" in psa_cols else psa_cols[0]
+                    user_id_col = "UsersId" if "UsersId" in psa_cols else ("PlayersId" if "PlayersId" in psa_cols else psa_cols[1])
+
+                    join_query = f"""
+                    SELECT sa.Uuid as qq, p.Name as player_name
+                    FROM {t_sa} sa
+                    JOIN {t_psa} psa ON sa.Id = psa.{sa_id_col}
+                    JOIN {t_p} p ON psa.{user_id_col} = p.Id
+                    """
+                    cursor.execute(join_query)
+                    for r in cursor.fetchall():
+                        raw_qq = r["qq"]
+                        if raw_qq is not None:
+                            qq_s = str(raw_qq).strip()
+                            if qq_s:
+                                bindings[qq_s] = str(r["player_name"]).strip() if r["player_name"] else "已绑定"
+
+                    logger.info(f"[EasyBotAdapter] EasyBot 2.0 联查成功读取到 {len(bindings)} 条绑定数据")
+                    return bindings
+
+                # 2. 单表架构适配 (EasyBot 1.x / 自定义单表)
                 selected_table = None
                 if table in tables:
                     selected_table = table
@@ -116,7 +149,7 @@ class EasyBotAdapter:
                 if qq_col in col_names:
                     actual_qq_col = qq_col
                 else:
-                    qq_candidates = ["qq", "user_id", "qq_id", "qid", "account", "user", "qq_number", "target"]
+                    qq_candidates = ["qq", "user_id", "qq_id", "qid", "uuid", "account", "user", "qq_number", "target"]
                     for cand in qq_candidates:
                         for c in col_names:
                             if cand.lower() == c.lower():
