@@ -1,0 +1,145 @@
+{
+  "data_source_type": {
+    "type": "string",
+    "default": "sqlite",
+    "description": "EasyBot 数据源类型",
+    "hint": "选择 EasyBot 绑定数据的存储方式 (sqlite / mysql / json / http_api)",
+    "options": ["sqlite", "mysql", "json", "http_api"]
+  },
+  "sqlite_path": {
+    "type": "string",
+    "default": "./data/EasyBot.db",
+    "description": "SQLite 数据库文件路径",
+    "hint": "EasyBot 数据库文件绝对路径或相对路径，例如 C:/server/plugins/EasyBot/EasyBot.db"
+  },
+  "sqlite_table": {
+    "type": "string",
+    "default": "binding",
+    "description": "SQLite 表名",
+    "hint": "存储绑定数据的表名（插件会自动探测常见表名如 binding, users, whitelist, players）"
+  },
+  "sqlite_qq_column": {
+    "type": "string",
+    "default": "qq",
+    "description": "SQLite QQ号字段名",
+    "hint": "表中记录 QQ 号的列名（自动探测 qq, user_id, qq_id, qid 等）"
+  },
+  "sqlite_player_column": {
+    "type": "string",
+    "default": "player_name",
+    "description": "SQLite 游戏名字段名",
+    "hint": "表中记录 MC 玩家名或 UUID 的列名（自动探测 player_name, name, player, uuid 等）"
+  },
+  "mysql_host": {
+    "type": "string",
+    "default": "127.0.0.1",
+    "description": "MySQL 主机地址",
+    "hint": "EasyBot 连接的 MySQL 地址"
+  },
+  "mysql_port": {
+    "type": "int",
+    "default": 3306,
+    "description": "MySQL 端口"
+  },
+  "mysql_user": {
+    "type": "string",
+    "default": "root",
+    "description": "MySQL 用户名"
+  },
+  "mysql_password": {
+    "type": "string",
+    "default": "",
+    "description": "MySQL 密码"
+  },
+  "mysql_database": {
+    "type": "string",
+    "default": "easybot",
+    "description": "MySQL 数据库名"
+  },
+  "mysql_table": {
+    "type": "string",
+    "default": "binding",
+    "description": "MySQL 表名"
+  },
+  "mysql_qq_column": {
+    "type": "string",
+    "default": "qq",
+    "description": "MySQL QQ号字段名"
+  },
+  "mysql_player_column": {
+    "type": "string",
+    "default": "player_name",
+    "description": "MySQL 游戏名字段名"
+  },
+  "json_path": {
+    "type": "string",
+    "default": "./config/easybot_mcdr/config.json",
+    "description": "JSON 绑定文件路径",
+    "hint": "EasyBot-MCDR 或本地自定义 JSON 绑定文件的路径"
+  },
+  "http_api_url": {
+    "type": "string",
+    "default": "http://127.0.0.1:8080/api/bindings",
+    "description": "HTTP API 查询地址",
+    "hint": "返回已绑定 QQ 列表或对象接口 URL"
+  },
+  "http_api_token": {
+    "type": "string",
+    "default": "",
+    "description": "HTTP API 鉴权 Token (可选)"
+  },
+  "default_inactive_days": {
+    "type": "int",
+    "default": 30,
+    "description": "默认未发言天数阈值",
+    "hint": "未绑定成员超过多少天未发言将被标记清理，支持指令临时指定"
+  },
+  "new_member_grace_days": {
+    "type": "int",
+    "default": 3,
+    "description": "新人入群保护天数",
+    "hint": "入群未满 X 天的成员不予踢出，给予新人缓冲绑定时间"
+  },
+  "whitelist_qqs": {
+    "type": "list",
+    "default": [],
+    "description": "永久白名单 QQ 列表",
+    "hint": "即使未绑定且未发言也绝不踢出的 QQ 号列表"
+  },
+  "target_groups": {
+    "type": "list",
+    "default": [],
+    "description": "生效群号列表",
+    "hint": "限制插件生效的 QQ 群号列表，留空表示所有管理员授权的群均可使用"
+  },
+  "kick_interval_seconds": {
+    "type": "float",
+    "default": 1.5,
+    "description": "踢人间歇延迟（秒）",
+    "hint": "批量踢人时每个请求间隔秒数，建议 1.0~3.0 秒防风控"
+  },
+  "auto_clean_enabled": {
+    "type": "bool",
+    "default": false,
+    "description": "是否开启定时自动清理",
+    "hint": "开启后将在指定时间自动执行检测"
+  },
+  "auto_clean_hour": {
+    "type": "int",
+    "default": 4,
+    "description": "定时任务执行小时 (0-23)",
+    "hint": "每日几点执行自动检测与清理（例如 4 代表凌晨 4 点）"
+  },
+  "auto_clean_minute": {
+    "type": "int",
+    "default": 0,
+    "description": "定时任务执行分钟 (0-59)"
+  },
+  "auto_clean_mode": {
+    "type": "string",
+    "default": "notify_only",
+    "description": "定时任务模式",
+    "hint": "notify_only: 仅在群内发送待清理报告; execute_kick: 直接自动踢出",
+    "options": ["notify_only", "execute_kick"]
+  }
+}
