@@ -1,7 +1,7 @@
 name: astrbot_plugin_easybot_cleaner
 display_name: EasyBot MC绑定与潜水清理
-desc: 联动 EasyBot 查询群成员的 MC 游戏账号绑定状态，过滤已绑定玩家，并自动扫描或踢出未绑定且长期未发言的成员。
-version: 1.0.5
+desc: 联动 EasyBot 查询群成员的 MC 游戏账号绑定状态，自动扫描或清理未绑定潜水成员及游戏内超期未上线玩家。
+version: 1.2.1
 author: "Astraea35"
 repo: https://github.com/Astraea35/astrbot_plugin_easybot_cleaner
 astrbot_version: ">=3.5.0"

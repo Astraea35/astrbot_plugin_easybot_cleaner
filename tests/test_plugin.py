@@ -5,11 +5,12 @@ import json
 import sqlite3
 import asyncio
 import unittest
+from datetime import datetime
 
 # 将项目目录加入 sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from easybot_adapter import EasyBotAdapter
+from easybot_adapter import EasyBotAdapter, BindingDetail, parse_and_format_time
 from member_checker import MemberChecker, KickManager, InactiveMemberInfo
 
 class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
@@ -17,30 +18,114 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.test_dir = os.path.dirname(__file__)
         self.db_path = os.path.join(self.test_dir, "test_easybot.db")
+        self.db2_path = os.path.join(self.test_dir, "test_easybot2.db")
         self.json_path = os.path.join(self.test_dir, "test_easybot.json")
 
-        # 1. 创建测试 SQLite 数据库
+        # 1. 创建单表测试 SQLite 数据库 (包含扩展字段)
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE binding (qq TEXT PRIMARY KEY, player_name TEXT)")
-        cursor.execute("INSERT INTO binding VALUES ('10001', 'Alex')")
-        cursor.execute("INSERT INTO binding VALUES ('10002', 'Steve')")
+        cursor.execute("""
+        CREATE TABLE binding (
+            qq TEXT PRIMARY KEY, 
+            player_name TEXT, 
+            created_at TEXT, 
+            play_count INTEGER, 
+            last_play_time TEXT
+        )
+        """)
+        cursor.execute("INSERT INTO binding VALUES ('10001', 'Alex', '2026-08-20 12:00:00', 10, '2026-08-25 18:30:00')")
+        cursor.execute("INSERT INTO binding VALUES ('10002', 'Steve', '2026-08-21 15:00:00', 5, '2026-08-24 10:00:00')")
         conn.commit()
         conn.close()
 
-        # 2. 创建测试 JSON 文件
+        # 2. 创建 EasyBot 2.0 架构测试 SQLite 数据库 (SocialAccount + PlayerSocialAccount + Player)
+        if os.path.exists(self.db2_path):
+            os.remove(self.db2_path)
+        conn2 = sqlite3.connect(self.db2_path)
+        c2 = conn2.cursor()
+        c2.execute("""
+        CREATE TABLE SocialAccount (
+            Id INTEGER PRIMARY KEY,
+            Platform TEXT,
+            Name TEXT,
+            Uuid TEXT,
+            CreatedAt TEXT,
+            UpdatedAt TEXT
+        )
+        """)
+        c2.execute("""
+        CREATE TABLE Player (
+            Id INTEGER PRIMARY KEY,
+            Name TEXT,
+            CreatedAt TEXT,
+            PlayCount INTEGER,
+            LastPlayTime TEXT
+        )
+        """)
+        c2.execute("""
+        CREATE TABLE PlayerSocialAccount (
+            SocialAccountsId INTEGER,
+            UsersId INTEGER,
+            PRIMARY KEY (SocialAccountsId, UsersId)
+        )
+        """)
+        # 插入模拟 EasyBot 2.0 数据 (注意 ISO 格式带7位微秒)
+        c2.execute("INSERT INTO SocialAccount VALUES (1, 'qq', '溯', '2846924897', '2026-08-25T23:05:28.3503607', '2026-08-25T23:05:28.3503697')")
+        c2.execute("INSERT INTO Player VALUES (101, 'Su_Player', '2026-08-25T23:05:28.3503607', 15, '2026-08-25T23:50:00.0000000')")
+        c2.execute("INSERT INTO PlayerSocialAccount VALUES (1, 101)")
+        conn2.commit()
+        conn2.close()
+
+        # 3. 创建测试 JSON 文件 (支持丰富字段与字典结构)
         with open(self.json_path, "w", encoding="utf-8") as f:
-            json.dump({"20001": "Notch", "20002": "Jeb_"}, f)
+            json.dump({
+                "20001": {
+                    "player_name": "Notch",
+                    "first_bound_time": "2026-08-22 10:00:00",
+                    "play_count": 42,
+                    "last_play_time": "2026-08-25 20:00:00"
+                },
+                "20002": "Jeb_"
+            }, f)
 
     def tearDown(self):
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
-        if os.path.exists(self.json_path):
-            os.remove(self.json_path)
+        for p in [self.db_path, self.db2_path, self.json_path]:
+            if os.path.exists(p):
+                os.remove(p)
 
-    async def test_sqlite_adapter(self):
+    def test_parse_and_format_time(self):
+        # 1. 测试 EasyBot 2.0 典型 ISO 格式（含7位微秒）
+        iso_str = "2026-08-25T23:05:28.3503607"
+        fmt, rel, days = parse_and_format_time(iso_str)
+        self.assertEqual(fmt, "2026-08-25 23:05:28")
+        self.assertIsNotNone(rel)
+
+        # 2. 测试标准 SQL 日期格式
+        sql_str = "2026-08-25 12:00:00"
+        fmt, rel, days = parse_and_format_time(sql_str)
+        self.assertEqual(fmt, "2026-08-25 12:00:00")
+
+        # 3. 测试 Unix 时间戳 (秒级)
+        ts_sec = 1787710566
+        fmt, rel, days = parse_and_format_time(ts_sec)
+        self.assertIsNotNone(fmt)
+
+        # 4. 测试 Unix 时间戳 (毫秒级)
+        ts_ms = 1787710566000
+        fmt, rel, days = parse_and_format_time(ts_ms)
+        self.assertIsNotNone(fmt)
+
+        # 5. 测试空值容错
+        fmt, rel, days = parse_and_format_time(None)
+        self.assertIsNone(fmt)
+        fmt, rel, days = parse_and_format_time("")
+        self.assertIsNone(fmt)
+        fmt, rel, days = parse_and_format_time("null")
+        self.assertIsNone(fmt)
+
+    async def test_sqlite_single_table_adapter(self):
         adapter = EasyBotAdapter({
             "data_source_type": "sqlite",
             "sqlite_path": self.db_path,
@@ -56,6 +141,31 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
         p1 = await adapter.get_player_by_qq("10001")
         self.assertEqual(p1, "Alex")
 
+        detail = await adapter.get_binding_detail_by_qq("10001")
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail.qq, "10001")
+        self.assertEqual(detail.player_name, "Alex")
+        self.assertEqual(detail.first_bound_formatted, "2026-08-20 12:00:00")
+        self.assertEqual(detail.play_count, 10)
+        self.assertEqual(detail.last_play_formatted, "2026-08-25 18:30:00")
+
+    async def test_sqlite_easybot2_adapter(self):
+        adapter = EasyBotAdapter({
+            "data_source_type": "sqlite",
+            "sqlite_path": self.db2_path
+        })
+        bound_set = await adapter.get_bound_qq_set()
+        self.assertIn("2846924897", bound_set)
+
+        detail = await adapter.get_binding_detail_by_qq("2846924897")
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail.qq, "2846924897")
+        self.assertEqual(detail.player_name, "Su_Player")
+        self.assertEqual(detail.first_bound_formatted, "2026-08-25 23:05:28")
+        self.assertEqual(detail.play_count, 15)
+        self.assertEqual(detail.last_play_formatted, "2026-08-25 23:50:00")
+        self.assertIsNotNone(detail.first_bound_relative)
+
     async def test_json_adapter(self):
         adapter = EasyBotAdapter({
             "data_source_type": "json",
@@ -64,6 +174,13 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
         bound_set = await adapter.get_bound_qq_set()
         self.assertIn("20001", bound_set)
         self.assertIn("20002", bound_set)
+
+        detail = await adapter.get_binding_detail_by_qq("20001")
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail.player_name, "Notch")
+        self.assertEqual(detail.first_bound_formatted, "2026-08-22 10:00:00")
+        self.assertEqual(detail.play_count, 42)
+        self.assertEqual(detail.last_play_formatted, "2026-08-25 20:00:00")
 
     def test_member_filter(self):
         config = {
@@ -76,23 +193,14 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
 
         # 模拟各种群成员数据
         members = [
-            # 1. 群主 (豁免)
             {"user_id": 1, "nickname": "群主", "role": "owner", "join_time": now - 86400*100, "last_sent_time": 0},
-            # 2. 管理员 (豁免)
             {"user_id": 2, "nickname": "管理员", "role": "admin", "join_time": now - 86400*100, "last_sent_time": 0},
-            # 3. 机器人自身 (豁免)
             {"user_id": 3, "nickname": "Bot", "role": "member", "join_time": now - 86400*100, "last_sent_time": 0},
-            # 4. 白名单成员 (豁免)
             {"user_id": 88888, "nickname": "特权大佬", "role": "member", "join_time": now - 86400*100, "last_sent_time": 0},
-            # 5. 新人保护期内（进群 2 天，未绑定未发言，应豁免）
             {"user_id": 4, "nickname": "新入群萌新", "role": "member", "join_time": now - 86400*2, "last_sent_time": 0},
-            # 6. 已绑定 MC 玩家（哪怕 60 天没发言也应豁免）
             {"user_id": 10001, "nickname": "MC老玩家", "role": "member", "join_time": now - 86400*100, "last_sent_time": now - 86400*60},
-            # 7. 未绑定，但昨天刚发言 (应豁免)
             {"user_id": 5, "nickname": "活跃潜水员", "role": "member", "join_time": now - 86400*100, "last_sent_time": now - 86400*1},
-            # 8. 未绑定，最后发言在 45 天前 (目标待清理成员！)
             {"user_id": 6, "nickname": "长期潜水A", "card": "小六", "role": "member", "join_time": now - 86400*100, "last_sent_time": now - 86400*45},
-            # 9. 未绑定，入群 50 天从未发言 (目标待清理成员！)
             {"user_id": 7, "nickname": "从不发言B", "role": "member", "join_time": now - 86400*50, "last_sent_time": 0},
         ]
 
@@ -115,6 +223,60 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(candidate_ids), 2)
         self.assertIn("6", candidate_ids)
         self.assertIn("7", candidate_ids)
+
+    def test_mc_inactive_filter_enabled(self):
+        """测试开启 MC 长期未上线自动清理时的过滤行为"""
+        now = int(time.time())
+        config = {
+            "default_inactive_days": 30,
+            "mc_inactive_clean_enabled": True,
+            "mc_inactive_days": 30,
+            "new_member_grace_days": 3,
+            "whitelist_qqs": ["88888"]
+        }
+        checker = MemberChecker(config)
+
+        # 成员列表
+        members = [
+            # 1. 已绑定，但游戏内 45 天未上线 (应被标记为待清理！)
+            {"user_id": 10001, "nickname": "MC老玩家", "role": "member", "join_time": now - 86400*100, "last_sent_time": now - 86400*1},
+            # 2. 已绑定，游戏内 5 天前刚上线 (应豁免)
+            {"user_id": 10002, "nickname": "MC活跃玩家", "role": "member", "join_time": now - 86400*100, "last_sent_time": now - 86400*1},
+            # 3. 白名单，哪怕 100 天没上线也应豁免
+            {"user_id": 88888, "nickname": "特权大佬", "role": "member", "join_time": now - 86400*100, "last_sent_time": 0},
+            # 4. 未绑定，40 天未发言 (应被标记为待清理！)
+            {"user_id": 10003, "nickname": "未绑定潜水员", "role": "member", "join_time": now - 86400*100, "last_sent_time": now - 86400*40},
+        ]
+
+        # 绑定详情映射 (带最后游玩时间)
+        last_play_45d_ago = datetime.fromtimestamp(now - 86400*45).strftime("%Y-%m-%d %H:%M:%S")
+        last_play_5d_ago = datetime.fromtimestamp(now - 86400*5).strftime("%Y-%m-%d %H:%M:%S")
+        last_play_100d_ago = datetime.fromtimestamp(now - 86400*100).strftime("%Y-%m-%d %H:%M:%S")
+
+        bound_details = {
+            "10001": BindingDetail(qq="10001", player_name="OldGuy", last_play_time=last_play_45d_ago),
+            "10002": BindingDetail(qq="10002", player_name="ActiveGuy", last_play_time=last_play_5d_ago),
+            "88888": BindingDetail(qq="88888", player_name="VIP", last_play_time=last_play_100d_ago),
+        }
+
+        report = checker.filter_inactive_members(
+            group_id="123456",
+            member_list=members,
+            bound_qq_set=bound_details,
+            override_inactive_days=30
+        )
+
+        self.assertEqual(report.total_members, 4)
+        self.assertEqual(report.bound_count, 1)        # 10002 (ActiveGuy)
+        self.assertEqual(report.exempt_count, 1)       # 88888 (Whitelist)
+        self.assertEqual(report.mc_inactive_count, 1)  # 10001 (OldGuy, 45d inactive)
+        self.assertEqual(len(report.inactive_candidates), 2) # 10001 (MC未上线) + 10003 (未绑定未发言)
+
+        c_map = {c.user_id: c for c in report.inactive_candidates}
+        self.assertIn("10001", c_map)
+        self.assertIn("10003", c_map)
+        self.assertEqual(c_map["10001"].member_type, "mc_inactive")
+        self.assertEqual(c_map["10003"].member_type, "unbound")
 
     def test_whitelist_helpers(self):
         config = {"whitelist_qqs": ["111", "222"]}
@@ -177,3 +339,4 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -8,7 +8,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api.message_components import Plain, At
 
-from .easybot_adapter import EasyBotAdapter
+from .easybot_adapter import EasyBotAdapter, BindingDetail, parse_and_format_time
 from .member_checker import MemberChecker, KickManager, ScanReport, InactiveMemberInfo
 
 logger = logging.getLogger("astrbot")
@@ -162,9 +162,9 @@ class EasyBotCleanerPlugin(Star):
         threshold_days = days if days is not None and days > 0 else int(self.config.get("default_inactive_days", 30))
         yield event.plain_result(f"🔍 正在查询 EasyBot 绑定数据并扫描群成员 (未发言阈值: {threshold_days} 天)...")
 
-        # 1. 获取已绑定 QQ 集合
-        bound_qqs = await self.adapter.get_bound_qq_set()
-        logger.info(f"[mc扫描] 获取到 {len(bound_qqs)} 个已绑定 MC 账号")
+        # 1. 获取已绑定账号详情
+        bound_details = await self.adapter.get_all_binding_details()
+        logger.info(f"[mc扫描] 获取到 {len(bound_details)} 个已绑定 MC 账号")
 
         # 2. 获取群成员列表
         members = await self._get_group_members(event, group_id)
@@ -177,33 +177,41 @@ class EasyBotCleanerPlugin(Star):
         report = self.checker.filter_inactive_members(
             group_id=group_id,
             member_list=members,
-            bound_qq_set=bound_qqs,
+            bound_qq_set=bound_details,
             bot_self_id=bot_id,
             override_inactive_days=threshold_days
         )
 
         # 4. 生成格式化报告
         msg_lines = [
-            f"📊【群潜水成员扫描报告】",
+            f"📊【群成员活跃与 MC 绑定扫描报告】",
             f"━━━━━━━━━━━━━━━━━━",
             f"👥 群总人数: {report.total_members} 人",
-            f"🎮 已绑定 MC 账号: {report.bound_count} 人 (已豁免)",
+            f"🎮 已绑定 MC 活跃: {report.bound_count} 人 (已豁免)",
+        ]
+
+        if report.mc_clean_enabled:
+            msg_lines.append(f"💤 已绑定但游戏内未上线 (≥{report.mc_threshold_days}天): {report.mc_inactive_count} 人")
+
+        msg_lines.extend([
             f"🛡️ 管理员/白名单: {report.exempt_count} 人 (已豁免)",
             f"🌱 新人保护期 (<{report.grace_days}天): {report.grace_count} 人 (已豁免)",
             f"💬 未绑定近期发言: {report.active_unbound_count} 人",
             f"━━━━━━━━━━━━━━━━━━",
-            f"⚠️ 待清理人数 (未绑定且 ≥{report.threshold_days}天未发言): {len(report.inactive_candidates)} 人",
-        ]
+            f"⚠️ 待清理总人数: {len(report.inactive_candidates)} 人",
+        ] + ([f"ℹ️ (注: 游戏内超期未上线清理当前处于关闭状态)"] if not report.mc_clean_enabled else []))
 
         if not report.inactive_candidates:
-            msg_lines.append("\n🎉 太棒了！群内暂无超期未绑定潜水成员。")
+            msg_lines.append("\n🎉 太棒了！群内暂无待清理的超期成员。")
         else:
             msg_lines.append("\n📋 待清理成员名单 (最多展示前 30 名):")
             for idx, c in enumerate(report.inactive_candidates[:30], 1):
-                if c.last_sent_time > 0:
-                    status_text = f"最后发言: {c.days_since_last_sent}天前"
+                if c.member_type == "mc_inactive":
+                    status_text = f"{c.reason}"
+                elif c.last_sent_time > 0:
+                    status_text = f"未绑定，最后发言: {c.days_since_last_sent}天前"
                 else:
-                    status_text = f"入群{c.days_since_join}天从未发言"
+                    status_text = f"未绑定，入群{c.days_since_join}天从未发言"
                 msg_lines.append(f"{idx}. {c.display_name} ({c.user_id}) - {status_text}")
 
             if len(report.inactive_candidates) > 30:
@@ -216,7 +224,7 @@ class EasyBotCleanerPlugin(Star):
     @filter.command("mc清理")
     async def mc_clean_cmd(self, event: AstrMessageEvent, days: Optional[int] = None, confirm_flag: Optional[str] = None):
         """
-        /mc清理 [未发言天数] [确认/强制] - 清理未绑定且超期未发言的成员
+        /mc清理 [未发言天数] [确认/强制] - 清理未绑定且超期未发言（及超期未上线）的成员
         """
         group_id = self._get_group_id(event)
         if not group_id:
@@ -245,7 +253,7 @@ class EasyBotCleanerPlugin(Star):
             is_confirmed = True
 
         # 1. 执行扫描
-        bound_qqs = await self.adapter.get_bound_qq_set()
+        bound_details = await self.adapter.get_all_binding_details()
         members = await self._get_group_members(event, group_id)
         if not members:
             yield event.plain_result("❌ 获取群成员列表失败，无法执行清理！")
@@ -255,14 +263,14 @@ class EasyBotCleanerPlugin(Star):
         report = self.checker.filter_inactive_members(
             group_id=group_id,
             member_list=members,
-            bound_qq_set=bound_qqs,
+            bound_qq_set=bound_details,
             bot_self_id=bot_id,
             override_inactive_days=threshold_days
         )
 
         candidates = report.inactive_candidates
         if not candidates:
-            yield event.plain_result(f"🎉 扫描完毕，当前群内没有未绑定且超过 {threshold_days} 天未发言的成员，无需清理。")
+            yield event.plain_result(f"🎉 扫描完毕，当前群内没有待清理的超期成员，无需清理。")
             return
 
         # 若未确认，则保存待清理状态并提示二次确认
@@ -274,7 +282,7 @@ class EasyBotCleanerPlugin(Star):
             }
             yield event.plain_result(
                 f"⚠️【高危操作警告】\n"
-                f"经检测，群内共有 {len(candidates)} 名未绑定 MC 账号且 ≥{threshold_days} 天未发言的成员！\n\n"
+                f"经检测，群内共有 {len(candidates)} 名待清理成员（含未绑定潜水成员" + (f"及 ≥{report.mc_threshold_days}天未上线MC玩家" if report.mc_clean_enabled else "") + f"）！\n\n"
                 f"❗ 执行清理将自动将这些成员踢出群聊。\n"
                 f"👉 请在 60 秒内发送: /mc清理 {threshold_days} 确认 确认执行！"
             )
@@ -336,8 +344,8 @@ class EasyBotCleanerPlugin(Star):
 
         yield event.plain_result(f"🔍 正在查询 QQ: {query_qq} 的绑定与发言状态...")
 
-        # 查询 MC 绑定
-        player_name = await self.adapter.get_player_by_qq(query_qq)
+        # 查询 MC 绑定详情
+        binding_detail = await self.adapter.get_binding_detail_by_qq(query_qq)
 
         # 查询群内成员信息
         member_info = None
@@ -351,8 +359,38 @@ class EasyBotCleanerPlugin(Star):
         lines = [
             f"📋【MC 绑定与活跃查询】",
             f"QQ 账号: {query_qq}",
-            f"🎮 绑定状态: " + (f"已绑定 (游戏名: {player_name})" if player_name else "❌ 未绑定 MC 账号"),
         ]
+
+        if binding_detail:
+            lines.append(f"🎮 MC 绑定: 已绑定 (游戏名: {binding_detail.player_name})")
+
+            # 1. 首次绑定日期
+            if binding_detail.first_bound_formatted:
+                rel_text = f" ({binding_detail.first_bound_relative})" if binding_detail.first_bound_relative else ""
+                lines.append(f"📅 首次绑定: {binding_detail.first_bound_formatted}{rel_text}")
+            elif binding_detail.first_bound_time:
+                lines.append(f"📅 首次绑定: {binding_detail.first_bound_time}")
+            else:
+                lines.append(f"📅 首次绑定: 暂无记录")
+
+            # 2. 游玩次数
+            if binding_detail.play_count is not None:
+                lines.append(f"🕹️ 游玩次数: {binding_detail.play_count} 次")
+            else:
+                lines.append(f"🕹️ 游玩次数: 暂无记录")
+
+            # 3. 上次游玩时间
+            if binding_detail.last_play_formatted:
+                rel_text = f" ({binding_detail.last_play_relative})" if binding_detail.last_play_relative else ""
+                lines.append(f"⏱️ 上次游玩: {binding_detail.last_play_formatted}{rel_text}")
+            elif binding_detail.last_play_time:
+                lines.append(f"⏱️ 上次游玩: {binding_detail.last_play_time}")
+            else:
+                lines.append(f"⏱️ 上次游玩: 暂无记录")
+        else:
+            lines.append("🎮 MC 绑定: ❌ 未绑定 MC 账号")
+
+        lines.append("━━━━━━━━━━━━━━━━━━")
 
         if member_info:
             now = int(time.time())
@@ -368,9 +406,9 @@ class EasyBotCleanerPlugin(Star):
             lines.append(f"🔰 群内身份: {role}")
             lines.append(f"📅 入群时长: {join_days} 天")
             if sent_days is not None:
-                lines.append(f"💬 最后发言: {sent_days} 天前")
+                lines.append(f"💬 群最后发言: {sent_days} 天前")
             else:
-                lines.append("💬 最后发言: 从未发言")
+                lines.append("💬 群最后发言: 从未发言")
         else:
             lines.append("ℹ️ 未在当前群中找到该成员的群信息。")
 
@@ -431,19 +469,22 @@ class EasyBotCleanerPlugin(Star):
         default_days = self.config.get("default_inactive_days", 30)
         grace_days = self.config.get("new_member_grace_days", 3)
         auto_clean = self.config.get("auto_clean_enabled", False)
+        mc_clean_enabled = self.config.get("mc_inactive_clean_enabled", False)
+        mc_days = self.config.get("mc_inactive_days", 30)
 
         help_text = (
             f"📖【EasyBot MC 绑定与潜水清理插件帮助】\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 /mc扫描 [天数] - 扫描未绑定且超期未发言成员（安全预览）\n"
-            f"🔹 /mc清理 [天数] [确认/强制] - 清理踢出未绑定超期成员\n"
-            f"🔹 /mc查绑定 [QQ/@] - 查询成员 MC 绑定与发言活跃\n"
+            f"🔹 /mc扫描 [天数] - 扫描待清理成员名单（安全预览）\n"
+            f"🔹 /mc清理 [天数] [确认/强制] - 清理踢出待清理成员\n"
+            f"🔹 /mc查绑定 [QQ/@] - 查询成员 MC 绑定与发言/游玩活跃\n"
             f"🔹 /mc白名单 [添加/删除/列表] [QQ] - 管理豁免白名单\n"
             f"🔹 /mc帮助 - 显示本帮助信息\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"⚙️ 当前配置状态:\n"
             f"- 数据源类型: {st}\n"
             f"- 默认未发言天数: {default_days} 天\n"
+            f"- MC未上线清理: {'已开启 (' + str(mc_days) + '天)' if mc_clean_enabled else '已关闭'}\n"
             f"- 新人保护天数: {grace_days} 天\n"
             f"- 定时巡检任务: {'已开启' if auto_clean else '已关闭'}"
         )
@@ -478,7 +519,7 @@ class EasyBotCleanerPlugin(Star):
             logger.info("[EasyBotCleaner] 未配置 target_groups，定时任务跳过执行")
             return
 
-        bound_qqs = await self.adapter.get_bound_qq_set()
+        bound_details = await self.adapter.get_all_binding_details()
         threshold_days = int(self.config.get("default_inactive_days", 30))
         mode = self.config.get("auto_clean_mode", "notify_only")
         interval = float(self.config.get("kick_interval_seconds", 1.5))

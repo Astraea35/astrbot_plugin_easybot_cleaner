@@ -30,6 +30,24 @@
     "description": "SQLite 游戏名字段名 (sqlite模式，可选)",
     "hint": "记录 MC 玩家名或 UUID 的列名（自动探测 player_name, name, player, uuid 等）"
   },
+  "sqlite_first_bind_column": {
+    "type": "string",
+    "default": "",
+    "description": "SQLite 首次绑定时间字段名 (sqlite模式，可选)",
+    "hint": "记录绑定时间的列名（留空自动探测 created_at, create_time, bind_time 等）"
+  },
+  "sqlite_play_count_column": {
+    "type": "string",
+    "default": "",
+    "description": "SQLite 游玩次数字段名 (sqlite模式，可选)",
+    "hint": "记录游玩/登录次数的列名（留空自动探测 play_count, login_count, times_played 等）"
+  },
+  "sqlite_last_play_column": {
+    "type": "string",
+    "default": "",
+    "description": "SQLite 上次游玩时间字段名 (sqlite模式，可选)",
+    "hint": "记录最后游玩/在线时间的列名（留空自动探测 last_play_time, last_played_time, last_login_time 等）"
+  },
   "mysql_host": {
     "type": "string",
     "default": "127.0.0.1",
@@ -72,6 +90,24 @@
     "default": "player_name",
     "description": "MySQL 游戏名字段名 (mysql模式)"
   },
+  "mysql_first_bind_column": {
+    "type": "string",
+    "default": "",
+    "description": "MySQL 首次绑定时间字段名 (mysql模式，可选)",
+    "hint": "记录绑定时间的列名（留空自动探测 created_at, create_time, bind_time 等）"
+  },
+  "mysql_play_count_column": {
+    "type": "string",
+    "default": "",
+    "description": "MySQL 游玩次数字段名 (mysql模式，可选)",
+    "hint": "记录游玩/登录次数的列名（留空自动探测 play_count, login_count, times_played 等）"
+  },
+  "mysql_last_play_column": {
+    "type": "string",
+    "default": "",
+    "description": "MySQL 上次游玩时间字段名 (mysql模式，可选)",
+    "hint": "记录最后游玩/在线时间的列名（留空自动探测 last_play_time, last_played_time, last_login_time 等）"
+  },
   "json_path": {
     "type": "string",
     "default": "./config/easybot_mcdr/config.json",
@@ -95,6 +131,18 @@
     "default": 30,
     "description": "默认未发言天数阈值",
     "hint": "未绑定成员超过多少天未发言将被标记清理，支持指令临时指定（例如 /mc扫描 15）"
+  },
+  "mc_inactive_clean_enabled": {
+    "type": "bool",
+    "default": false,
+    "description": "是否开启 MC 游戏内长期未上线清理",
+    "hint": "开启后将同时扫描并清理已绑定 MC 账号但在游戏内超过指定天数未上线的玩家（默认不开启）"
+  },
+  "mc_inactive_days": {
+    "type": "int",
+    "default": 30,
+    "description": "MC 游戏内未上线天数阈值",
+    "hint": "已绑定玩家在 MC 游戏内超过多少天未上线将被判定为待清理"
   },
   "new_member_grace_days": {
     "type": "int",
