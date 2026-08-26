@@ -1,195 +1,223 @@
 {
-  "data_source_type": {
-    "type": "string",
-    "default": "sqlite",
-    "description": "EasyBot 数据源类型",
-    "hint": "绑定数据存储方式：sqlite（同机 EasyBot.db 数据库，最常用推荐）/ mysql（远程或群组服数据库）/ json（MCDR插件配置）/ http_api（远程Web接口）",
-    "options": ["sqlite", "mysql", "json", "http_api"]
+  "data_source": {
+    "type": "object",
+    "description": "EasyBot 数据源设置",
+    "hint": "配置从何处读取 Minecraft 玩家绑定数据与统计信息",
+    "items": {
+      "data_source_type": {
+        "type": "string",
+        "default": "sqlite",
+        "description": "EasyBot 数据源类型",
+        "hint": "绑定数据存储方式：sqlite（同机 EasyBot.db 数据库，最常用推荐）/ mysql（远程或群组服数据库）/ json（MCDR插件配置）/ http_api（远程Web接口）",
+        "options": ["sqlite", "mysql", "json", "http_api"]
+      },
+      "sqlite_path": {
+        "type": "string",
+        "default": "./data/EasyBot.db",
+        "description": "SQLite 数据库文件路径 (sqlite模式)",
+        "hint": "EasyBot.db 数据库文件绝对或相对路径，例如 D:/EasyBot/EasyBot.db（自动兼容 EasyBot 1.x 与 2.0）"
+      },
+      "sqlite_table": {
+        "type": "string",
+        "default": "binding",
+        "description": "SQLite 表名 (sqlite模式，可选)",
+        "hint": "存储绑定数据的表名（留空或默认即可，插件会自动探测 EasyBot 2.0 多表或 binding, users, players 等单表）"
+      },
+      "sqlite_qq_column": {
+        "type": "string",
+        "default": "qq",
+        "description": "SQLite QQ号字段名 (sqlite模式，可选)",
+        "hint": "记录 QQ 号的列名（自动探测 qq, user_id, qq_id, qid 等，一般保持默认即可）"
+      },
+      "sqlite_player_column": {
+        "type": "string",
+        "default": "player_name",
+        "description": "SQLite 游戏名字段名 (sqlite模式，可选)",
+        "hint": "记录 MC 玩家名或 UUID 的列名（自动探测 player_name, name, player, uuid 等）"
+      },
+      "sqlite_first_bind_column": {
+        "type": "string",
+        "default": "",
+        "description": "SQLite 首次绑定时间字段名 (sqlite模式，可选)",
+        "hint": "记录绑定时间的列名（留空自动探测 created_at, create_time, bind_time 等）"
+      },
+      "sqlite_play_count_column": {
+        "type": "string",
+        "default": "",
+        "description": "SQLite 游玩次数字段名 (sqlite模式，可选)",
+        "hint": "记录游玩/登录次数的列名（留空自动探测 play_count, login_count, times_played 等）"
+      },
+      "sqlite_last_play_column": {
+        "type": "string",
+        "default": "",
+        "description": "SQLite 上次游玩时间字段名 (sqlite模式，可选)",
+        "hint": "记录最后游玩/在线时间的列名（留空自动探测 last_play_time, last_played_time, last_login_time 等）"
+      },
+      "mysql_host": {
+        "type": "string",
+        "default": "127.0.0.1",
+        "description": "MySQL 主机地址 (mysql模式)",
+        "hint": "EasyBot 远程连接的 MySQL 服务器 IP 地址"
+      },
+      "mysql_port": {
+        "type": "int",
+        "default": 3306,
+        "description": "MySQL 端口 (mysql模式)",
+        "hint": "MySQL 端口，默认为 3306"
+      },
+      "mysql_user": {
+        "type": "string",
+        "default": "root",
+        "description": "MySQL 用户名 (mysql模式)"
+      },
+      "mysql_password": {
+        "type": "string",
+        "default": "",
+        "description": "MySQL 密码 (mysql模式)"
+      },
+      "mysql_database": {
+        "type": "string",
+        "default": "easybot",
+        "description": "MySQL 数据库名 (mysql模式)"
+      },
+      "mysql_table": {
+        "type": "string",
+        "default": "binding",
+        "description": "MySQL 表名 (mysql模式)"
+      },
+      "mysql_qq_column": {
+        "type": "string",
+        "default": "qq",
+        "description": "MySQL QQ号字段名 (mysql模式)"
+      },
+      "mysql_player_column": {
+        "type": "string",
+        "default": "player_name",
+        "description": "MySQL 游戏名字段名 (mysql模式)"
+      },
+      "mysql_first_bind_column": {
+        "type": "string",
+        "default": "",
+        "description": "MySQL 首次绑定时间字段名 (mysql模式，可选)",
+        "hint": "记录绑定时间的列名（留空自动探测 created_at, create_time, bind_time 等）"
+      },
+      "mysql_play_count_column": {
+        "type": "string",
+        "default": "",
+        "description": "MySQL 游玩次数字段名 (mysql模式，可选)",
+        "hint": "记录游玩/登录次数的列名（留空自动探测 play_count, login_count, times_played 等）"
+      },
+      "mysql_last_play_column": {
+        "type": "string",
+        "default": "",
+        "description": "MySQL 上次游玩时间字段名 (mysql模式，可选)",
+        "hint": "记录最后游玩/在线时间的列名（留空自动探测 last_play_time, last_played_time, last_login_time 等）"
+      },
+      "json_path": {
+        "type": "string",
+        "default": "./config/easybot_mcdr/config.json",
+        "description": "JSON 绑定文件路径 (json模式)",
+        "hint": "EasyBot-MCDR 或本地自定义 JSON 绑定文件的路径"
+      },
+      "http_api_url": {
+        "type": "string",
+        "default": "http://127.0.0.1:8080/api/bindings",
+        "description": "HTTP API 查询地址 (http_api模式)",
+        "hint": "返回已绑定 QQ 列表的 Web API 接口 URL"
+      },
+      "http_api_token": {
+        "type": "string",
+        "default": "",
+        "description": "HTTP API 鉴权 Token (http_api模式，可选)",
+        "hint": "请求 HTTP API 时的 Bearer Token 鉴权凭证（若无需鉴权可留空）"
+      }
+    }
   },
-  "sqlite_path": {
-    "type": "string",
-    "default": "./data/EasyBot.db",
-    "description": "SQLite 数据库文件路径 (sqlite模式)",
-    "hint": "EasyBot.db 数据库文件绝对或相对路径，例如 D:/EasyBot/EasyBot.db（自动兼容 EasyBot 1.x 与 2.0）"
+  "clean_rules": {
+    "type": "object",
+    "description": "潜水与清理规则设置",
+    "hint": "配置群潜水天数阈值、新人保护天数、生效群号与安全白名单",
+    "items": {
+      "default_inactive_days": {
+        "type": "int",
+        "default": 30,
+        "description": "默认未发言天数阈值",
+        "hint": "未绑定成员超过多少天未发言将被标记清理，支持指令临时指定（例如 /mc扫描 15）"
+      },
+      "new_member_grace_days": {
+        "type": "int",
+        "default": 3,
+        "description": "新人入群保护天数",
+        "hint": "入群未满 X 天的成员不予踢出，给予新人缓冲绑定时间"
+      },
+      "whitelist_qqs": {
+        "type": "list",
+        "default": [],
+        "description": "永久白名单 QQ 列表",
+        "hint": "即使未绑定且未发言也绝不踢出的 QQ 号列表"
+      },
+      "target_groups": {
+        "type": "list",
+        "default": [],
+        "description": "生效群号列表",
+        "hint": "限制插件生效的 QQ 群号列表，留空表示所有管理员授权的群均可使用"
+      },
+      "kick_interval_seconds": {
+        "type": "float",
+        "default": 1.5,
+        "description": "踢人间歇延迟（秒）",
+        "hint": "批量踢人时每个请求间隔秒数，建议 1.0~3.0 秒防风控"
+      }
+    }
   },
-  "sqlite_table": {
-    "type": "string",
-    "default": "binding",
-    "description": "SQLite 表名 (sqlite模式，可选)",
-    "hint": "存储绑定数据的表名（留空或默认即可，插件会自动探测 EasyBot 2.0 多表或 binding, users, players 等单表）"
+  "mc_inactive_clean": {
+    "type": "object",
+    "description": "MC 游戏内未上线清理设置",
+    "hint": "配置是否自动清理已绑定 MC 账号但在游戏内长期未上线的玩家",
+    "items": {
+      "mc_inactive_clean_enabled": {
+        "type": "bool",
+        "default": false,
+        "description": "开启 MC 游戏内长期未上线清理",
+        "hint": "开启后将同时扫描并清理已绑定 MC 账号但在游戏内超过指定天数未上线的玩家（默认不开启）"
+      },
+      "mc_inactive_days": {
+        "type": "int",
+        "default": 30,
+        "description": "MC 游戏内未上线天数阈值",
+        "hint": "已绑定玩家在 MC 游戏内超过多少天未上线将被判定为待清理"
+      }
+    }
   },
-  "sqlite_qq_column": {
-    "type": "string",
-    "default": "qq",
-    "description": "SQLite QQ号字段名 (sqlite模式，可选)",
-    "hint": "记录 QQ 号的列名（自动探测 qq, user_id, qq_id, qid 等，一般保持默认即可）"
-  },
-  "sqlite_player_column": {
-    "type": "string",
-    "default": "player_name",
-    "description": "SQLite 游戏名字段名 (sqlite模式，可选)",
-    "hint": "记录 MC 玩家名或 UUID 的列名（自动探测 player_name, name, player, uuid 等）"
-  },
-  "sqlite_first_bind_column": {
-    "type": "string",
-    "default": "",
-    "description": "SQLite 首次绑定时间字段名 (sqlite模式，可选)",
-    "hint": "记录绑定时间的列名（留空自动探测 created_at, create_time, bind_time 等）"
-  },
-  "sqlite_play_count_column": {
-    "type": "string",
-    "default": "",
-    "description": "SQLite 游玩次数字段名 (sqlite模式，可选)",
-    "hint": "记录游玩/登录次数的列名（留空自动探测 play_count, login_count, times_played 等）"
-  },
-  "sqlite_last_play_column": {
-    "type": "string",
-    "default": "",
-    "description": "SQLite 上次游玩时间字段名 (sqlite模式，可选)",
-    "hint": "记录最后游玩/在线时间的列名（留空自动探测 last_play_time, last_played_time, last_login_time 等）"
-  },
-  "mysql_host": {
-    "type": "string",
-    "default": "127.0.0.1",
-    "description": "MySQL 主机地址 (mysql模式)",
-    "hint": "EasyBot 远程连接的 MySQL 服务器 IP 地址"
-  },
-  "mysql_port": {
-    "type": "int",
-    "default": 3306,
-    "description": "MySQL 端口 (mysql模式)",
-    "hint": "MySQL 端口，默认为 3306"
-  },
-  "mysql_user": {
-    "type": "string",
-    "default": "root",
-    "description": "MySQL 用户名 (mysql模式)"
-  },
-  "mysql_password": {
-    "type": "string",
-    "default": "",
-    "description": "MySQL 密码 (mysql模式)"
-  },
-  "mysql_database": {
-    "type": "string",
-    "default": "easybot",
-    "description": "MySQL 数据库名 (mysql模式)"
-  },
-  "mysql_table": {
-    "type": "string",
-    "default": "binding",
-    "description": "MySQL 表名 (mysql模式)"
-  },
-  "mysql_qq_column": {
-    "type": "string",
-    "default": "qq",
-    "description": "MySQL QQ号字段名 (mysql模式)"
-  },
-  "mysql_player_column": {
-    "type": "string",
-    "default": "player_name",
-    "description": "MySQL 游戏名字段名 (mysql模式)"
-  },
-  "mysql_first_bind_column": {
-    "type": "string",
-    "default": "",
-    "description": "MySQL 首次绑定时间字段名 (mysql模式，可选)",
-    "hint": "记录绑定时间的列名（留空自动探测 created_at, create_time, bind_time 等）"
-  },
-  "mysql_play_count_column": {
-    "type": "string",
-    "default": "",
-    "description": "MySQL 游玩次数字段名 (mysql模式，可选)",
-    "hint": "记录游玩/登录次数的列名（留空自动探测 play_count, login_count, times_played 等）"
-  },
-  "mysql_last_play_column": {
-    "type": "string",
-    "default": "",
-    "description": "MySQL 上次游玩时间字段名 (mysql模式，可选)",
-    "hint": "记录最后游玩/在线时间的列名（留空自动探测 last_play_time, last_played_time, last_login_time 等）"
-  },
-  "json_path": {
-    "type": "string",
-    "default": "./config/easybot_mcdr/config.json",
-    "description": "JSON 绑定文件路径 (json模式)",
-    "hint": "EasyBot-MCDR 或本地自定义 JSON 绑定文件的路径"
-  },
-  "http_api_url": {
-    "type": "string",
-    "default": "http://127.0.0.1:8080/api/bindings",
-    "description": "HTTP API 查询地址 (http_api模式)",
-    "hint": "返回已绑定 QQ 列表的 Web API 接口 URL"
-  },
-  "http_api_token": {
-    "type": "string",
-    "default": "",
-    "description": "HTTP API 鉴权 Token (http_api模式，可选)",
-    "hint": "请求 HTTP API 时的 Bearer Token 鉴权凭证（若无需鉴权可留空）"
-  },
-  "default_inactive_days": {
-    "type": "int",
-    "default": 30,
-    "description": "默认未发言天数阈值",
-    "hint": "未绑定成员超过多少天未发言将被标记清理，支持指令临时指定（例如 /mc扫描 15）"
-  },
-  "mc_inactive_clean_enabled": {
-    "type": "bool",
-    "default": false,
-    "description": "是否开启 MC 游戏内长期未上线清理",
-    "hint": "开启后将同时扫描并清理已绑定 MC 账号但在游戏内超过指定天数未上线的玩家（默认不开启）"
-  },
-  "mc_inactive_days": {
-    "type": "int",
-    "default": 30,
-    "description": "MC 游戏内未上线天数阈值",
-    "hint": "已绑定玩家在 MC 游戏内超过多少天未上线将被判定为待清理"
-  },
-  "new_member_grace_days": {
-    "type": "int",
-    "default": 3,
-    "description": "新人入群保护天数",
-    "hint": "入群未满 X 天的成员不予踢出，给予新人缓冲绑定时间"
-  },
-  "whitelist_qqs": {
-    "type": "list",
-    "default": [],
-    "description": "永久白名单 QQ 列表",
-    "hint": "即使未绑定且未发言也绝不踢出的 QQ 号列表"
-  },
-  "target_groups": {
-    "type": "list",
-    "default": [],
-    "description": "生效群号列表",
-    "hint": "限制插件生效的 QQ 群号列表，留空表示所有管理员授权的群均可使用"
-  },
-  "kick_interval_seconds": {
-    "type": "float",
-    "default": 1.5,
-    "description": "踢人间歇延迟（秒）",
-    "hint": "批量踢人时每个请求间隔秒数，建议 1.0~3.0 秒防风控"
-  },
-  "auto_clean_enabled": {
-    "type": "bool",
-    "default": false,
-    "description": "是否开启定时自动清理",
-    "hint": "开启后将在指定时间每日自动执行群成员检测"
-  },
-  "auto_clean_hour": {
-    "type": "int",
-    "default": 4,
-    "description": "定时任务执行小时 (0-23)",
-    "hint": "每日几点执行自动检测与清理（例如 4 代表凌晨 4 点）"
-  },
-  "auto_clean_minute": {
-    "type": "int",
-    "default": 0,
-    "description": "定时任务执行分钟 (0-59)"
-  },
-  "auto_clean_mode": {
-    "type": "string",
-    "default": "notify_only",
-    "description": "定时任务模式",
-    "hint": "notify_only: 仅在群内发送待清理报告; execute_kick: 直接自动踢出",
-    "options": ["notify_only", "execute_kick"]
+  "auto_clean_schedule": {
+    "type": "object",
+    "description": "定时巡检与自动任务设置",
+    "hint": "配置每日定时自动检测与巡检模式",
+    "items": {
+      "auto_clean_enabled": {
+        "type": "bool",
+        "default": false,
+        "description": "是否开启定时自动清理",
+        "hint": "开启后将在指定时间每日自动执行群成员检测"
+      },
+      "auto_clean_hour": {
+        "type": "int",
+        "default": 4,
+        "description": "定时任务执行小时 (0-23)",
+        "hint": "每日几点执行自动检测与清理（例如 4 代表凌晨 4 点）"
+      },
+      "auto_clean_minute": {
+        "type": "int",
+        "default": 0,
+        "description": "定时任务执行分钟 (0-59)"
+      },
+      "auto_clean_mode": {
+        "type": "string",
+        "default": "notify_only",
+        "description": "定时任务模式",
+        "hint": "notify_only: 仅在群内发送待清理报告; execute_kick: 直接自动踢出",
+        "options": ["notify_only", "execute_kick"]
+      }
+    }
   }
 }

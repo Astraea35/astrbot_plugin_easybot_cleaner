@@ -1,5 +1,9 @@
-
 # Auto-added by upload script
 upload.py
 upload.bat
 上传GitHub.py
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/

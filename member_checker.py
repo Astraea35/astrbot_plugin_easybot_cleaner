@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import List, Dict, Set, Optional, Any, Tuple, Union
 
 try:
-    from .easybot_adapter import BindingDetail, parse_and_format_time
+    from .easybot_adapter import BindingDetail, parse_and_format_time, get_config_val
 except ImportError:
-    from easybot_adapter import BindingDetail, parse_and_format_time
+    from easybot_adapter import BindingDetail, parse_and_format_time, get_config_val
 
 logger = logging.getLogger("astrbot")
 
@@ -53,8 +53,11 @@ class MemberChecker:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
 
+    def _cfg_get(self, key: str, default: Any = None) -> Any:
+        return get_config_val(self.config, key, default)
+
     def get_whitelist_set(self) -> Set[str]:
-        raw_list = self.config.get("whitelist_qqs", [])
+        raw_list = self._cfg_get("whitelist_qqs", [])
         if isinstance(raw_list, list):
             return {str(x).strip() for x in raw_list if str(x).strip()}
         return set()
@@ -73,12 +76,12 @@ class MemberChecker:
         根据配置和绑定列表过滤出待清理成员
         """
         now = int(time.time())
-        inactive_days_threshold = override_inactive_days if override_inactive_days is not None else int(self.config.get("default_inactive_days", 30))
-        grace_days = int(self.config.get("new_member_grace_days", 3))
+        inactive_days_threshold = override_inactive_days if override_inactive_days is not None else int(self._cfg_get("default_inactive_days", 30))
+        grace_days = int(self._cfg_get("new_member_grace_days", 3))
         whitelist = self.get_whitelist_set()
 
-        mc_clean_enabled = override_mc_clean_enabled if override_mc_clean_enabled is not None else self.config.get("mc_inactive_clean_enabled", False)
-        mc_inactive_days = override_mc_inactive_days if override_mc_inactive_days is not None else int(self.config.get("mc_inactive_days", 30))
+        mc_clean_enabled = override_mc_clean_enabled if override_mc_clean_enabled is not None else self._cfg_get("mc_inactive_clean_enabled", False)
+        mc_inactive_days = override_mc_inactive_days if override_mc_inactive_days is not None else int(self._cfg_get("mc_inactive_days", 30))
 
         inactive_seconds = inactive_days_threshold * 86400
         grace_seconds = grace_days * 86400
@@ -270,6 +273,9 @@ class KickManager:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
 
+    def _cfg_get(self, key: str, default: Any = None) -> Any:
+        return get_config_val(self.config, key, default)
+
     async def execute_kick_batch(
         self,
         bot: Any,
@@ -282,7 +288,7 @@ class KickManager:
         返回: (成功列表, 失败列表[(成员, 错误信息)])
         """
         if interval_seconds is None:
-            interval_seconds = float(self.config.get("kick_interval_seconds", 1.5))
+            interval_seconds = float(self._cfg_get("kick_interval_seconds", 1.5))
 
         success_list: List[InactiveMemberInfo] = []
         fail_list: List[Tuple[InactiveMemberInfo, str]] = []

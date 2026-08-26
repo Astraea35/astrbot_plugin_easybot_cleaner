@@ -155,6 +155,35 @@ class BindingDetail:
         }
 
 
+def get_config_val(config: Dict[str, Any], key: str, default: Any = None) -> Any:
+    """
+    智能读取配置项，支持顶层扁平键与嵌套模块对象
+    """
+    if not isinstance(config, dict):
+        return default
+    if key in config and config[key] is not None:
+        return config[key]
+    for k, v in config.items():
+        if isinstance(v, dict):
+            res = get_config_val(v, key, None)
+            if res is not None:
+                return res
+    return default
+
+
+def set_config_val(config: Dict[str, Any], key: str, value: Any):
+    """
+    智能写入配置项，优先更新嵌套模块中的对应键
+    """
+    if not isinstance(config, dict):
+        return
+    for k, v in config.items():
+        if isinstance(v, dict) and key in v:
+            v[key] = value
+            return
+    config[key] = value
+
+
 class EasyBotAdapter:
     """
     EasyBot 数据源适配器
@@ -164,9 +193,12 @@ class EasyBotAdapter:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
 
+    def _cfg_get(self, key: str, default: Any = None) -> Any:
+        return get_config_val(self.config, key, default)
+
     @property
     def source_type(self) -> str:
-        return self.config.get("data_source_type", "sqlite").lower()
+        return self._cfg_get("data_source_type", "sqlite").lower()
 
     async def get_all_binding_details(self) -> Dict[str, BindingDetail]:
         """
@@ -222,7 +254,7 @@ class EasyBotAdapter:
 
     # ---------------- SQLite 适配 ----------------
     async def _fetch_details_from_sqlite(self) -> Dict[str, BindingDetail]:
-        db_path = self.config.get("sqlite_path", "./data/EasyBot.db")
+        db_path = self._cfg_get("sqlite_path", "./data/EasyBot.db")
         if not os.path.isabs(db_path):
             db_path = os.path.abspath(db_path)
 
@@ -230,12 +262,12 @@ class EasyBotAdapter:
             logger.warning(f"[EasyBotAdapter] SQLite 数据库文件不存在: {db_path}")
             return {}
 
-        table = self.config.get("sqlite_table", "binding").strip()
-        qq_col = self.config.get("sqlite_qq_column", "qq").strip()
-        player_col = self.config.get("sqlite_player_column", "player_name").strip()
-        first_bind_col = self.config.get("sqlite_first_bind_column", "").strip()
-        play_count_col = self.config.get("sqlite_play_count_column", "").strip()
-        last_play_col = self.config.get("sqlite_last_play_column", "").strip()
+        table = self._cfg_get("sqlite_table", "binding").strip()
+        qq_col = self._cfg_get("sqlite_qq_column", "qq").strip()
+        player_col = self._cfg_get("sqlite_player_column", "player_name").strip()
+        first_bind_col = self._cfg_get("sqlite_first_bind_column", "").strip()
+        play_count_col = self._cfg_get("sqlite_play_count_column", "").strip()
+        last_play_col = self._cfg_get("sqlite_last_play_column", "").strip()
 
         def _sync_sqlite_fetch() -> Dict[str, BindingDetail]:
             results: Dict[str, BindingDetail] = {}
@@ -371,16 +403,18 @@ class EasyBotAdapter:
     # ---------------- MySQL 适配 ----------------
     async def _fetch_details_from_mysql(self) -> Dict[str, BindingDetail]:
         def _sync_fetch() -> Dict[str, BindingDetail]:
-            try: import pymysql
-            except ImportError: return {}
-            host = self.config.get("mysql_host", "127.0.0.1")
-            port = int(self.config.get("mysql_port", 3306))
-            user = self.config.get("mysql_user", "root")
-            password = self.config.get("mysql_password", "")
-            database = self.config.get("mysql_database", "easybot")
-            table = self.config.get("mysql_table", "binding")
-            qq_col = self.config.get("mysql_qq_column", "qq")
-            player_col = self.config.get("mysql_player_column", "player_name")
+            try:
+                import pymysql
+            except ImportError:
+                return {}
+            host = self._cfg_get("mysql_host", "127.0.0.1")
+            port = int(self._cfg_get("mysql_port", 3306))
+            user = self._cfg_get("mysql_user", "root")
+            password = self._cfg_get("mysql_password", "")
+            database = self._cfg_get("mysql_database", "easybot")
+            table = self._cfg_get("mysql_table", "binding")
+            qq_col = self._cfg_get("mysql_qq_column", "qq")
+            player_col = self._cfg_get("mysql_player_column", "player_name")
             conn = pymysql.connect(host=host, port=port, user=user, password=password, database=database, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor, connect_timeout=5)
             result: Dict[str, BindingDetail] = {}
             try:
@@ -414,7 +448,7 @@ class EasyBotAdapter:
 
     # ---------------- JSON 适配 ----------------
     async def _fetch_details_from_json(self) -> Dict[str, BindingDetail]:
-        json_path = self.config.get("json_path", "./config/easybot_mcdr/config.json")
+        json_path = self._cfg_get("json_path", "./config/easybot_mcdr/config.json")
         if not os.path.exists(json_path): return {}
         def _read_json():
             with open(json_path, 'r', encoding='utf-8') as f: return json.load(f)
@@ -448,8 +482,8 @@ class EasyBotAdapter:
             logger.error("[EasyBotAdapter] 使用 HTTP API 数据源需要安装 httpx: pip install httpx")
             return {}
 
-        url = self.config.get("http_api_url", "http://127.0.0.1:8080/api/bindings")
-        token = self.config.get("http_api_token", "").strip()
+        url = self._cfg_get("http_api_url", "http://127.0.0.1:8080/api/bindings")
+        token = self._cfg_get("http_api_token", "").strip()
 
         headers = {}
         if token:

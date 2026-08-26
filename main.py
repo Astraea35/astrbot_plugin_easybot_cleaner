@@ -8,7 +8,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
 from astrbot.api.message_components import Plain, At
 
-from .easybot_adapter import EasyBotAdapter, BindingDetail, parse_and_format_time
+from .easybot_adapter import EasyBotAdapter, BindingDetail, parse_and_format_time, get_config_val, set_config_val
 from .member_checker import MemberChecker, KickManager, ScanReport, InactiveMemberInfo
 
 logger = logging.getLogger("astrbot")
@@ -30,9 +30,15 @@ class EasyBotCleanerPlugin(Star):
 
         # 启动后台定时巡检任务
         self._scheduler_task: Optional[asyncio.Task] = None
-        if self.config.get("auto_clean_enabled", False):
+        if self._cfg_get("auto_clean_enabled", False):
             self._scheduler_task = asyncio.create_task(self._scheduled_loop())
             logger.info("[EasyBotCleaner] 已启动定时自动巡检后台任务")
+
+    def _cfg_get(self, key: str, default: Any = None) -> Any:
+        return get_config_val(self.config, key, default)
+
+    def _cfg_set(self, key: str, value: Any):
+        set_config_val(self.config, key, value)
 
     async def terminate(self):
         """插件卸载或重载时的清理"""
@@ -134,7 +140,7 @@ class EasyBotCleanerPlugin(Star):
 
     def _is_group_allowed(self, group_id: str) -> bool:
         """检查群是否在目标群列表中"""
-        target_groups = self.config.get("target_groups", [])
+        target_groups = self._cfg_get("target_groups", [])
         if not target_groups:
             return True
         return str(group_id) in [str(g) for g in target_groups]
@@ -159,7 +165,7 @@ class EasyBotCleanerPlugin(Star):
             yield event.plain_result("⛔ 权限不足：只有群主或管理员才可执行此指令！")
             return
 
-        threshold_days = days if days is not None and days > 0 else int(self.config.get("default_inactive_days", 30))
+        threshold_days = days if days is not None and days > 0 else int(self._cfg_get("default_inactive_days", 30))
         yield event.plain_result(f"🔍 正在查询 EasyBot 绑定数据并扫描群成员 (未发言阈值: {threshold_days} 天)...")
 
         # 1. 获取已绑定账号详情
@@ -239,7 +245,7 @@ class EasyBotCleanerPlugin(Star):
             yield event.plain_result("⛔ 权限不足：只有群主或管理员才可执行此指令！")
             return
 
-        threshold_days = days if days is not None and days > 0 else int(self.config.get("default_inactive_days", 30))
+        threshold_days = days if days is not None and days > 0 else int(self._cfg_get("default_inactive_days", 30))
         is_force = confirm_flag and confirm_flag.lower() in ["force", "confirm", "yes", "true", "-f", "确认", "强制", "确定"]
 
         now = time.time()
@@ -290,7 +296,7 @@ class EasyBotCleanerPlugin(Star):
 
         # 已确认，开始执行踢人流程
         self._pending_cleans.pop(group_id, None)
-        interval = float(self.config.get("kick_interval_seconds", 1.5))
+        interval = float(self._cfg_get("kick_interval_seconds", 1.5))
         est_seconds = round(len(candidates) * interval)
         yield event.plain_result(f"🚀 开始执行清理任务，共 {len(candidates)} 人待踢出，预计耗时 {est_seconds} 秒 (防风控间隔 {interval}s)...")
 
@@ -425,7 +431,7 @@ class EasyBotCleanerPlugin(Star):
             return
 
         act = (action or "列表").lower()
-        whitelist: List[str] = self.config.get("whitelist_qqs", [])
+        whitelist: List[str] = self._cfg_get("whitelist_qqs", [])
         if not isinstance(whitelist, list):
             whitelist = []
 
@@ -448,12 +454,12 @@ class EasyBotCleanerPlugin(Star):
                 yield event.plain_result(f"ℹ️ QQ {qq_str} 已在白名单中。")
             else:
                 whitelist.append(qq_str)
-                self.config["whitelist_qqs"] = whitelist
+                self._cfg_set("whitelist_qqs", whitelist)
                 yield event.plain_result(f"✅ 成功将 QQ {qq_str} 添加至白名单！")
         elif act in ["del", "rm", "remove", "-", "删除", "移除", "删"]:
             if qq_str in whitelist:
                 whitelist.remove(qq_str)
-                self.config["whitelist_qqs"] = whitelist
+                self._cfg_set("whitelist_qqs", whitelist)
                 yield event.plain_result(f"✅ 成功将 QQ {qq_str} 从白名单中移除！")
             else:
                 yield event.plain_result(f"ℹ️ QQ {qq_str} 不在白名单中。")
@@ -466,11 +472,11 @@ class EasyBotCleanerPlugin(Star):
         /mc帮助 - 查看 MC 潜水清理插件帮助与当前配置
         """
         st = self.adapter.source_type
-        default_days = self.config.get("default_inactive_days", 30)
-        grace_days = self.config.get("new_member_grace_days", 3)
-        auto_clean = self.config.get("auto_clean_enabled", False)
-        mc_clean_enabled = self.config.get("mc_inactive_clean_enabled", False)
-        mc_days = self.config.get("mc_inactive_days", 30)
+        default_days = self._cfg_get("default_inactive_days", 30)
+        grace_days = self._cfg_get("new_member_grace_days", 3)
+        auto_clean = self._cfg_get("auto_clean_enabled", False)
+        mc_clean_enabled = self._cfg_get("mc_inactive_clean_enabled", False)
+        mc_days = self._cfg_get("mc_inactive_days", 30)
 
         help_text = (
             f"📖【EasyBot MC 绑定与潜水清理插件帮助】\n"
@@ -497,8 +503,8 @@ class EasyBotCleanerPlugin(Star):
         while True:
             try:
                 now_dt = datetime.now()
-                target_hour = int(self.config.get("auto_clean_hour", 4))
-                target_minute = int(self.config.get("auto_clean_minute", 0))
+                target_hour = int(self._cfg_get("auto_clean_hour", 4))
+                target_minute = int(self._cfg_get("auto_clean_minute", 0))
 
                 if now_dt.hour == target_hour and now_dt.minute == target_minute:
                     logger.info("[EasyBotCleaner] 触发定时巡检任务...")
@@ -514,15 +520,15 @@ class EasyBotCleanerPlugin(Star):
 
     async def _run_scheduled_clean(self):
         """执行定时自动巡检逻辑"""
-        target_groups = self.config.get("target_groups", [])
+        target_groups = self._cfg_get("target_groups", [])
         if not target_groups:
             logger.info("[EasyBotCleaner] 未配置 target_groups，定时任务跳过执行")
             return
 
         bound_details = await self.adapter.get_all_binding_details()
-        threshold_days = int(self.config.get("default_inactive_days", 30))
-        mode = self.config.get("auto_clean_mode", "notify_only")
-        interval = float(self.config.get("kick_interval_seconds", 1.5))
+        threshold_days = int(self._cfg_get("default_inactive_days", 30))
+        mode = self._cfg_get("auto_clean_mode", "notify_only")
+        interval = float(self._cfg_get("kick_interval_seconds", 1.5))
 
         # 获取平台适配器
         # 遍历 target_groups 进行检测

@@ -337,6 +337,51 @@ class TestEasyBotCleaner(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bot.kicked[0], (123456, 1001))
         self.assertEqual(bot.kicked[1], (123456, 1002))
 
+    def test_modular_config_support(self):
+        """测试按模块划分的嵌套配置能否被正确读取与写入"""
+        from easybot_adapter import get_config_val, set_config_val
+        
+        modular_config = {
+            "data_source": {
+                "data_source_type": "sqlite",
+                "sqlite_path": "./data/EasyBot.db",
+                "sqlite_table": "binding"
+            },
+            "clean_rules": {
+                "default_inactive_days": 15,
+                "new_member_grace_days": 5,
+                "whitelist_qqs": ["111", "222"],
+                "target_groups": ["999"],
+                "kick_interval_seconds": 2.0
+            },
+            "mc_inactive_clean": {
+                "mc_inactive_clean_enabled": True,
+                "mc_inactive_days": 20
+            },
+            "auto_clean_schedule": {
+                "auto_clean_enabled": True,
+                "auto_clean_hour": 3,
+                "auto_clean_minute": 30,
+                "auto_clean_mode": "execute_kick"
+            }
+        }
+
+        # 1. 验证 get_config_val
+        self.assertEqual(get_config_val(modular_config, "data_source_type"), "sqlite")
+        self.assertEqual(get_config_val(modular_config, "default_inactive_days"), 15)
+        self.assertEqual(get_config_val(modular_config, "mc_inactive_clean_enabled"), True)
+        self.assertEqual(get_config_val(modular_config, "auto_clean_hour"), 3)
+        self.assertEqual(get_config_val(modular_config, "non_existent_key", 999), 999)
+
+        # 2. 验证 set_config_val
+        set_config_val(modular_config, "whitelist_qqs", ["111", "222", "333"])
+        self.assertEqual(modular_config["clean_rules"]["whitelist_qqs"], ["111", "222", "333"])
+
+        # 3. 验证 MemberChecker 配合模块化配置
+        checker = MemberChecker(modular_config)
+        self.assertIn("333", checker.get_whitelist_set())
+        self.assertEqual(checker._cfg_get("mc_inactive_days"), 20)
+
 if __name__ == "__main__":
     unittest.main()
 
